@@ -1,12 +1,14 @@
 # جابینجا سوایپ · Jobinja Swipe
 
-A minimal, installable PWA for browsing public [Jobinja](https://jobinja.ir/jobs) job posts one card at a time.
+A minimal, installable PWA for browsing public [Jobinja](https://jobinja.ir/jobs) and [Jobvision](https://jobvision.ir/jobs) job posts one card at a time.
 
 - **Swipe left** → skip
-- **Swipe right** → apply
-- **Keyboard** → `←` skip, `→` apply, `Z` undo
+- **Swipe right** → open the exact job posting on its source site
+- **Keyword filter** → search title, company, skills, category, and description
+- **Source filter** → show all jobs, Jobinja only, or Jobvision only
+- **Keyboard** → `←` skip, `→` apply, `Z` undo, `Esc` clear filters
 - Shows the job title, company, location, contract, salary, and description
-- Applying opens Jobinja's own login page with the job as the return URL. The app never asks for or stores Jobinja credentials.
+- Applying always happens on the source site. The app never asks for or stores Jobinja or Jobvision credentials.
 - Swipe decisions and progress stay in `localStorage`.
 - Installable as a PWA and usable offline after the first load.
 
@@ -14,15 +16,18 @@ Live app: <https://dg-run.github.io/jobinja-swipe/>
 
 ## How it works
 
-`public/data/jobs.json` is a snapshot of public Jobinja job posts. The UI is a static React app; there is no account system and no backend.
+`public/data/jobs.json` is a snapshot of public job posts from both sources. The UI is a static React app; there is no account system and no backend.
 
-The data refresh script reads Jobinja's public jobs page through Google Translate's read-only proxy (`jobinja-ir.translate.goog`) because Jobinja blocks non-Iranian IPs. The proxy is only used while generating the snapshot; the deployed app loads the checked-in JSON.
+- **Jobinja** is read through Google Translate's read-only proxy (`jobinja-ir.translate.goog`) because Jobinja blocks non-Iranian IPs.
+- **Jobvision** is read from its public jobs API (`candidateapi.jobvision.ir`) and job detail pages.
 
-Applying always happens on `jobinja.ir`:
+The proxies are only used while generating the snapshot; the deployed app loads the checked-in JSON. If a source fails during refresh, the script keeps that source's jobs from the previous snapshot.
+
+Applying always happens on the source site:
 
 1. The user swipes right or presses the apply button.
-2. The app opens `https://jobinja.ir/login/user?redirect_url=<job-url>&return_url=<job-url>`.
-3. The user signs in to Jobinja (or creates an account), lands on the job page, and sends their resume there.
+2. The app opens the exact job posting URL in a new tab (`jobinja.ir/companies/...` or `jobvision.ir/jobs/...`).
+3. The user signs in if needed and sends their resume there.
 
 The app does not automate login, form submission, or SMS verification. This keeps credentials out of the app and leaves the final application action with the user.
 
@@ -55,9 +60,15 @@ Optional environment variables:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PAGES` | `4` | Jobinja list pages to read (20 posts each) |
-| `LIMIT` | `72` | Maximum number of jobs to keep |
-| `DETAILS` | on | Set to `0` to skip job detail pages |
+| `LIMIT` | `72` | Maximum number of Jobinja jobs to keep |
+| `DETAILS` | on | Set to `0` to skip Jobinja detail pages |
 | `CONCURRENCY` | `2` | Parallel detail requests |
+| `JV_PAGES` | `3` | Jobvision list pages to read (30 posts each) |
+| `JV_PAGE_SIZE` | `30` | Jobvision page size |
+| `JV_LIMIT` | `90` | Maximum number of Jobvision jobs to keep |
+| `JV_DETAILS` | on | Set to `0` to skip Jobvision detail requests |
+
+The script interleaves Jobinja and Jobvision jobs so both sources appear early in the deck.
 
 ## Deployment
 
@@ -83,13 +94,13 @@ A personal access token needs the `workflow` scope to push files under `.github/
 ## Privacy
 
 - No analytics, no cookies, no server.
-- No Jobinja email, password, OTP, or session cookie is collected.
+- No Jobinja or Jobvision email, password, OTP, or session cookie is collected.
 - Swipe history is stored only in the browser's `localStorage`.
-- Job logos are loaded from Jobinja's CDN and cached by the service worker.
+- Job logos are loaded from the sources' CDNs and cached by the service worker.
 
 ## Disclaimer
 
-This is an independent project and is not affiliated with, endorsed by, or supported by Jobinja. Jobinja's public pages and markup can change at any time. Use the app responsibly and follow Jobinja's terms and robots/access policies. If you need guaranteed current data or a supported integration, use Jobinja directly.
+This is an independent project and is not affiliated with, endorsed by, or supported by Jobinja or Jobvision. Their public pages, APIs, and markup can change at any time. Use the app responsibly and follow each site's terms and robots/access policies. If you need guaranteed current data or a supported integration, use Jobinja or Jobvision directly.
 
 ## License
 

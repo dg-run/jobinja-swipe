@@ -10,22 +10,25 @@ import {
   ArrowRightIcon,
   CheckIcon,
   DownloadIcon,
+  ExternalIcon,
   InfoIcon,
-  LoginIcon,
   RotateIcon,
+  SearchIcon,
   SparkIcon,
   UndoIcon,
   XIcon,
 } from './components/Icons'
 import {
   JOBINJA_JOBS,
-  JOBINJA_LOGIN,
-  applyUrl,
+  JOBVISION_JOBS,
   formatCount,
   formatDate,
+  jobSource,
+  sourceLabel,
 } from './lib/jobinja'
+import { matchesKeyword } from './lib/filter'
 import { loadDecisions, saveDecisions } from './lib/storage'
-import type { Decision, DecisionAction, Job, JobsPayload, Toast } from './types'
+import type { Decision, DecisionAction, Job, JobsPayload, JobSource, Toast } from './types'
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
@@ -45,6 +48,8 @@ export default function App() {
   const [toast, setToast] = useState<Toast | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
+  const [query, setQuery] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<'all' | JobSource>('all')
 
   const pointer = useRef<{
     id: number
@@ -95,18 +100,33 @@ export default function App() {
     })
   }, [payload])
 
+  const hasFilters = query.trim().length > 0 || sourceFilter !== 'all'
+  const filteredJobs = useMemo(() => {
+    if (!payload) return []
+    return payload.jobs.filter(
+      (job) =>
+        (sourceFilter === 'all' || jobSource(job) === sourceFilter) &&
+        matchesKeyword(job, query),
+    )
+  }, [payload, query, sourceFilter])
   const decidedIds = useMemo(() => new Set(decisions.map((decision) => decision.id)), [decisions])
   const activeJobs = useMemo(
-    () => (payload ? payload.jobs.filter((job) => !decidedIds.has(job.id)) : []),
-    [payload, decidedIds],
+    () => filteredJobs.filter((job) => !decidedIds.has(job.id)),
+    [filteredJobs, decidedIds],
   )
   const current: Job | undefined = activeJobs[0]
   const next: Job | undefined = activeJobs[1]
   const total = payload?.jobs.length ?? 0
+  const resultTotal = filteredJobs.length
   const remaining = activeJobs.length
   const appliedCount = decisions.filter((decision) => decision.action === 'apply').length
   const skippedCount = decisions.length - appliedCount
   const progress = total === 0 ? 0 : Math.round((decisions.length / total) * 100)
+  const sourceCounts = useMemo(() => {
+    const counts: Record<JobSource, number> = { jobinja: 0, jobvision: 0 }
+    for (const job of payload?.jobs ?? []) counts[jobSource(job)] += 1
+    return counts
+  }, [payload])
 
   const showToast = useCallback((message: string, href?: string, linkLabel?: string) => {
     window.clearTimeout(toastTimer.current)
@@ -130,17 +150,17 @@ export default function App() {
     setExit(null)
   }, [current?.id])
 
-  const openJobinja = useCallback(
+  const openPosting = useCallback(
     (job: Job) => {
-      const opened = window.open(applyUrl(job), '_blank')
+      const opened = window.open(job.url, '_blank')
       if (opened) {
         opened.opener = null
-        showToast('جابینجا در تب جدید باز شد. بعد از ورود، رزومه را ارسال کن.')
+        showToast(`صفحه آگهی در ${sourceLabel(jobSource(job))} باز شد. رزومه را همان‌جا ارسال کن.`)
       } else {
         showToast(
           'مرورگر تب جدید را باز نکرد. از دکمه ارسال رزومه استفاده کن.',
-          applyUrl(job),
-          'باز کردن جابینجا',
+          job.url,
+          'باز کردن آگهی',
         )
       }
     },
@@ -152,7 +172,7 @@ export default function App() {
       if (!current || exit) return
       const job = current
 
-      if (action === 'apply') openJobinja(job)
+      if (action === 'apply') openPosting(job)
 
       setExit(action === 'apply' ? 'right' : 'left')
       window.clearTimeout(advanceTimer.current)
@@ -164,7 +184,7 @@ export default function App() {
         setExit(null)
       }, 235)
     },
-    [current, exit, openJobinja],
+    [current, exit, openPosting],
   )
 
   const undo = useCallback(() => {
@@ -182,6 +202,11 @@ export default function App() {
     dragX.current = 0
     showToast('همه آگهی‌ها دوباره نمایش داده می‌شوند.')
   }, [showToast])
+
+  const clearFilters = useCallback(() => {
+    setQuery('')
+    setSourceFilter('all')
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -202,12 +227,15 @@ export default function App() {
       } else if (event.key.toLowerCase() === 'z') {
         event.preventDefault()
         undo()
+      } else if (event.key === 'Escape' && hasFilters) {
+        event.preventDefault()
+        clearFilters()
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [commit, infoOpen, undo])
+  }, [clearFilters, commit, hasFilters, infoOpen, undo])
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -340,7 +368,7 @@ export default function App() {
           </span>
           <div>
             <h1>جابینجا سوایپ</h1>
-            <p>آگهی‌های تازه، یکی‌یکی</p>
+            <p>آگهی‌های جابینجا و جاب‌ویژن، یکی‌یکی</p>
           </div>
         </div>
 
@@ -366,10 +394,59 @@ export default function App() {
           <span>
             {formatCount(decisions.length)} از {formatCount(total)} آگهی
           </span>
-          <span>{formatCount(remaining)} باقی‌مانده</span>
+          <span>
+            {hasFilters
+              ? `${formatCount(remaining)} از ${formatCount(resultTotal)} نتیجه`
+              : `${formatCount(remaining)} باقی‌مانده`}
+          </span>
         </div>
         <div className="progress__track">
           <span style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      <div className="filters">
+        <label className="search-field">
+          <SearchIcon />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="جستجوی عنوان، شرکت، مهارت…"
+            aria-label="فیلتر کلیدواژه"
+            autoComplete="off"
+          />
+          {query ? (
+            <button
+              className="search-clear"
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="پاک کردن جستجو"
+            >
+              <XIcon />
+            </button>
+          ) : null}
+        </label>
+        <div className="source-filter" role="group" aria-label="منبع آگهی">
+          <button
+            className="source-chip"
+            type="button"
+            aria-pressed={sourceFilter === 'all'}
+            onClick={() => setSourceFilter('all')}
+          >
+            همه منابع
+          </button>
+          {(['jobinja', 'jobvision'] as const).map((source) => (
+            <button
+              key={source}
+              className="source-chip"
+              type="button"
+              aria-pressed={sourceFilter === source}
+              onClick={() => setSourceFilter(source)}
+            >
+              {sourceLabel(source)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -384,7 +461,7 @@ export default function App() {
           <div className="state-card">
             <div className="state-card__icon state-card__icon--warn">!</div>
             <h2>آگهی‌ها بارگذاری نشد</h2>
-            <p>اتصال را بررسی کن یا مستقیم در جابینجا سر بزن.</p>
+            <p>اتصال را بررسی کن یا مستقیم در جابینجا و جاب‌ویژن سر بزن.</p>
             <div className="state-card__actions">
               <button className="primary-button" type="button" onClick={() => void loadJobs()}>
                 تلاش دوباره
@@ -392,12 +469,16 @@ export default function App() {
               <a className="secondary-button" href={JOBINJA_JOBS} target="_blank" rel="noreferrer">
                 جابینجا
               </a>
+              <a className="secondary-button" href={JOBVISION_JOBS} target="_blank" rel="noreferrer">
+                جاب‌ویژن
+              </a>
             </div>
           </div>
         ) : current ? (
           <div className="stage" onClickCapture={onClickCapture}>
             {next ? (
               <JobCard
+                key={next.id}
                 job={next}
                 hidden
                 className="job-card--next"
@@ -405,6 +486,7 @@ export default function App() {
               />
             ) : null}
             <JobCard
+              key={current.id}
               job={current}
               className={`${dragging ? 'job-card--dragging' : ''} ${
                 exit ? `job-card--exit-${exit}` : ''
@@ -417,6 +499,38 @@ export default function App() {
               onPointerCancel={(event) => endPointer(event, true)}
             />
           </div>
+        ) : hasFilters && resultTotal === 0 ? (
+          <div className="state-card">
+            <div className="state-card__icon">
+              <SearchIcon />
+            </div>
+            <h2>نتیجه‌ای پیدا نشد</h2>
+            <p>کلیدواژه یا منبع دیگری را امتحان کن.</p>
+            <div className="state-card__actions">
+              <button className="primary-button" type="button" onClick={clearFilters}>
+                پاک کردن فیلترها
+              </button>
+            </div>
+          </div>
+        ) : hasFilters ? (
+          <div className="state-card state-card--done">
+            <div className="state-card__icon">
+              <CheckIcon />
+            </div>
+            <h2>همه نتایج این فیلتر را دیدی</h2>
+            <p>
+              {formatCount(resultTotal)} آگهی با این فیلتر پیدا شد و همه را بررسی کردی.
+            </p>
+            <div className="state-card__actions">
+              <button className="primary-button" type="button" onClick={clearFilters}>
+                نمایش همه آگهی‌ها
+              </button>
+              <button className="secondary-button" type="button" onClick={reset}>
+                <RotateIcon />
+                شروع دوباره
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="state-card state-card--done">
             <div className="state-card__icon">
@@ -425,7 +539,7 @@ export default function App() {
             <h2>همه آگهی‌ها را دیدی</h2>
             <p>
               {formatCount(appliedCount)} ارسال و {formatCount(skippedCount)} رد. اگر آگهی‌های
-              تازه می‌خواهی، جابینجا را باز کن.
+              تازه می‌خواهی، جابینجا یا جاب‌ویژن را باز کن.
             </p>
             <div className="state-card__stats">
               <span>
@@ -443,7 +557,10 @@ export default function App() {
                 شروع دوباره
               </button>
               <a className="secondary-button" href={JOBINJA_JOBS} target="_blank" rel="noreferrer">
-                آگهی‌های جدید
+                جابینجا
+              </a>
+              <a className="secondary-button" href={JOBVISION_JOBS} target="_blank" rel="noreferrer">
+                جاب‌ویژن
               </a>
             </div>
           </div>
@@ -463,7 +580,7 @@ export default function App() {
             </span>
             <span className="swipe-action__text">
               <strong>ارسال رزومه</strong>
-              <small>با ورود جابینجا</small>
+              <small>صفحه آگهی باز می‌شود</small>
             </span>
             <ArrowRightIcon className="swipe-action__arrow" />
           </button>
@@ -495,14 +612,18 @@ export default function App() {
             <UndoIcon />
             بازگرداندن
           </button>
-          <a className="text-button" href={JOBINJA_LOGIN} target="_blank" rel="noreferrer">
-            <LoginIcon />
-            ورود به جابینجا
+          <a className="text-button" href={JOBINJA_JOBS} target="_blank" rel="noreferrer">
+            <ExternalIcon />
+            جابینجا
+          </a>
+          <a className="text-button" href={JOBVISION_JOBS} target="_blank" rel="noreferrer">
+            <ExternalIcon />
+            جاب‌ویژن
           </a>
         </div>
         <p className="keyboard-hint">
           <SparkIcon />
-          با کلیدهای چپ و راست هم می‌توانی سوایپ کنی
+          چپ و راست سوایپ، تایپ برای فیلتر، Esc برای پاک کردن فیلتر
         </p>
       </footer>
 
@@ -537,13 +658,16 @@ export default function App() {
             <span className="eyebrow">درباره</span>
             <h2 id="about-title">جابینجا سوایپ</h2>
             <p>
-              یک رابط ساده برای مرور آگهی‌های عمومی جابینجا. هر آگهی را رد کن یا برای ارسال
-              رزومه به جابینجا برو.
+              یک رابط ساده برای مرور آگهی‌های عمومی جابینجا و جاب‌ویژن. هر آگهی را رد کن یا
+              صفحه همان آگهی را برای ارسال رزومه باز کن.
             </p>
             <ul className="about-list">
               <li>
-                <strong>منبع آگهی‌ها</strong>
-                <span>صفحه عمومی «فرصت‌های شغلی» جابینجا</span>
+                <strong>منابع آگهی‌ها</strong>
+                <span>
+                  جابینجا ({formatCount(sourceCounts.jobinja)}) و جاب‌ویژن (
+                  {formatCount(sourceCounts.jobvision)})
+                </span>
               </li>
               <li>
                 <strong>آخرین به‌روزرسانی</strong>
@@ -552,8 +676,13 @@ export default function App() {
               <li>
                 <strong>ارسال رزومه</strong>
                 <span>
-                  ورود و ارسال در سایت جابینجا انجام می‌شود؛ این اپ رمز یا حساب نمی‌گیرد.
+                  با سوایپ راست، صفحه همان آگهی در سایت منبع باز می‌شود؛ این اپ رمز یا حساب
+                  نمی‌گیرد.
                 </span>
+              </li>
+              <li>
+                <strong>فیلتر</strong>
+                <span>کلیدواژه در عنوان، شرکت، مهارت‌ها و متن آگهی جست‌وجو می‌کند.</span>
               </li>
               <li>
                 <strong>حریم خصوصی</strong>
@@ -562,7 +691,10 @@ export default function App() {
             </ul>
             <div className="modal__actions">
               <a className="primary-button" href={JOBINJA_JOBS} target="_blank" rel="noreferrer">
-                مشاهده جابینجا
+                جابینجا
+              </a>
+              <a className="secondary-button" href={JOBVISION_JOBS} target="_blank" rel="noreferrer">
+                جاب‌ویژن
               </a>
               <a
                 className="secondary-button"
@@ -574,7 +706,7 @@ export default function App() {
               </a>
             </div>
             <p className="modal__note">
-              این پروژه مستقل است و وابستگی رسمی به جابینجا ندارد.
+              این پروژه مستقل است و وابستگی رسمی به جابینجا یا جاب‌ویژن ندارد.
             </p>
           </div>
         </div>

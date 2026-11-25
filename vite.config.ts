@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'جابینجا سوایپ',
         short_name: 'جابینجا',
         description:
-          'آگهی‌های استخدام جابینجا را یکی‌یکی ببین؛ چپ برای رد کردن، راست برای ارسال رزومه.',
+          'آگهی‌های استخدام جابینجا و جاب‌ویژن را یکی‌یکی ببین؛ فیلتر کن و با سوایپ راست صفحه آگهی را باز کن.',
         lang: 'fa',
         dir: 'rtl',
         start_url: './',
@@ -56,6 +56,20 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'jobinja-logos',
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fileapi\.jobvision\.ir\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'jobvision-logos',
               expiration: {
                 maxEntries: 120,
                 maxAgeSeconds: 60 * 60 * 24 * 30,

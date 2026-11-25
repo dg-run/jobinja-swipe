@@ -81,6 +81,15 @@ export function UndoIcon(props: IconProps) {
   )
 }
 
+export function SearchIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4.5 4.5" />
+    </svg>
+  )
+}
+
 export function InfoIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

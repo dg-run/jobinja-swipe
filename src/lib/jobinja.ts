@@ -1,12 +1,16 @@
-import type { Job } from '../types'
+import type { Job, JobSource } from '../types'
 
 export const JOBINJA = 'https://jobinja.ir'
 export const JOBINJA_JOBS = `${JOBINJA}/jobs`
-export const JOBINJA_LOGIN = `${JOBINJA}/login/user`
+export const JOBVISION = 'https://jobvision.ir'
+export const JOBVISION_JOBS = `${JOBVISION}/jobs`
 
-export function applyUrl(job: Job): string {
-  const redirect = encodeURIComponent(job.url)
-  return `${JOBINJA_LOGIN}?redirect_url=${redirect}&return_url=${redirect}`
+export function jobSource(job: Job): JobSource {
+  return job.source === 'jobvision' ? 'jobvision' : 'jobinja'
+}
+
+export function sourceLabel(source: JobSource): string {
+  return source === 'jobvision' ? 'جاب‌ویژن' : 'جابینجا'
 }
 
 export function companyInitials(company: string): string {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { CSSProperties, PointerEventHandler } from 'react'
 import type { Job } from '../types'
-import { companyInitials } from '../lib/jobinja'
+import { companyInitials, jobSource, sourceLabel } from '../lib/jobinja'
 import {
   BanknoteIcon,
   BriefcaseIcon,
@@ -34,6 +34,7 @@ export function JobCard({
 }: Props) {
   const [logoFailed, setLogoFailed] = useState(false)
   const stampOpacity = Math.min(1, Math.abs(dragX) / 90)
+  const source = jobSource(job)
 
   return (
     <article
@@ -73,7 +74,10 @@ export function JobCard({
             <strong>{job.company}</strong>
           </div>
         </div>
-        {job.posted ? <span className="posted-badge">{job.posted}</span> : null}
+        <div className="job-card__badges">
+          <span className={`source-badge source-badge--${source}`}>{sourceLabel(source)}</span>
+          {job.posted ? <span className="posted-badge">{job.posted}</span> : null}
+        </div>
       </header>
 
       <h2 className="job-card__title">{job.title}</h2>
@@ -108,7 +112,9 @@ export function JobCard({
       </section>
 
       <footer className="job-card__footer">
-        <span className="job-card__skills">{job.skills || job.experience || 'اطلاعات بیشتر در جابینجا'}</span>
+        <span className="job-card__skills">
+          {job.skills || job.experience || `اطلاعات بیشتر در ${sourceLabel(source)}`}
+        </span>
         <a
           className="source-link"
           href={job.url}
@@ -116,7 +122,7 @@ export function JobCard({
           rel="noreferrer noopener"
           onClick={(event) => event.stopPropagation()}
         >
-          جابینجا
+          {sourceLabel(source)}
           <ExternalIcon />
         </a>
       </footer>

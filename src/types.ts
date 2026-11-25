@@ -1,3 +1,5 @@
+export type JobSource = 'jobinja' | 'jobvision'
+
 export type Job = {
   id: string
   title: string
@@ -12,12 +14,14 @@ export type Job = {
   salary: string
   skills: string
   description: string
+  source?: JobSource
 }
 
 export type JobsPayload = {
   source: string
   fetchedAt: string
   total: number
+  counts?: Partial<Record<JobSource, number>>
   jobs: Job[]
 }
 
